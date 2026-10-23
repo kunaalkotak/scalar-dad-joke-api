@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Secrets - this project needs none, but never commit them if you add any
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Generated / local files
+coverage/
+.nyc_output/
+*.log
+npm-debug.log*
+.DS_Store
+.vscode/
+.idea/

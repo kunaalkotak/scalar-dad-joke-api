@@ -1,0 +1,384 @@
+openapi: 3.1.0
+
+info:
+  title: Dad Joke API
+  version: 1.0.0
+  summary: Fetch a random dad joke, one specific joke, or search the collection.
+  description: |
+    Documentation for the public **icanhazdadjoke** API, written by our college
+    group as an OpenAPI 3.1 file and displayed with Scalar.
+
+    ## Which server should I use?
+
+    * **Local caching proxy (default).** A small Node.js program in this project
+      (`server.js`) that forwards each request to the real API. It always sends
+      `Accept: application/json` and a `User-Agent` for you, remembers successful
+      answers for a short time (see the `X-Cache` response header) and limits how
+      many requests can reach the public API per minute.
+    * **Official API.** `https://icanhazdadjoke.com` itself. If you pick it you must
+      add the header `Accept: application/json` yourself, otherwise the API replies
+      with HTML or plain text. The API's documentation does not state whether
+      browsers may call it directly (CORS), so the local proxy is the supported
+      way to try requests from this page.
+
+    The proxy **does not invent jokes**. Every joke you see comes from the
+    official API. It only adds caching and safety limits.
+
+    ## Facts taken from the official documentation
+
+    * No authentication or API key is needed.
+    * Response format is chosen by the `Accept` header (`application/json`,
+      `text/plain` or `text/html`). This file documents the JSON format.
+    * `limit` defaults to 20 and has a maximum of 30.
+
+externalDocs:
+  description: Official icanhazdadjoke API documentation
+  url: https://icanhazdadjoke.com/api
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local caching proxy (default). Start it with `npm start`.
+  - url: https://icanhazdadjoke.com
+    description: Official API (direct). Add the request header `Accept` = `application/json`.
+
+tags:
+  - name: Jokes
+    description: Read-only operations for fetching and searching dad jokes.
+
+paths:
+  /:
+    get:
+      operationId: getRandomJoke
+      tags: [Jokes]
+      summary: Retrieve a random joke
+      description: |
+        Returns one randomly chosen dad joke.
+
+        When used through the local proxy, the same joke may be returned for up to
+        **10 seconds** because successful responses are cached briefly. Wait a
+        little and send again to get a new random joke.
+      responses:
+        '200':
+          description: A random joke.
+          headers:
+            X-Cache:
+              $ref: '#/components/headers/XCache'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokeResponse'
+              examples:
+                randomJoke:
+                  summary: Example from the official documentation
+                  value:
+                    id: R7UfaahVfFd
+                    joke: My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.
+                    status: 200
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamFailure'
+        '504':
+          $ref: '#/components/responses/UpstreamTimeout'
+
+  /j/{joke_id}:
+    get:
+      operationId: getJokeById
+      tags: [Jokes]
+      summary: Retrieve a particular joke
+      description: |
+        Returns the joke with the given ID. A joke never changes, so the local
+        proxy remembers it for **1 hour**.
+
+        Use the `id` field from a random-joke or search response as `joke_id`.
+        `R7UfaahVfFd` is the ID used in the official documentation.
+      parameters:
+        - $ref: '#/components/parameters/JokeId'
+      responses:
+        '200':
+          description: The requested joke.
+          headers:
+            X-Cache:
+              $ref: '#/components/headers/XCache'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokeResponse'
+              examples:
+                knownJoke:
+                  summary: Example from the official documentation
+                  value:
+                    id: R7UfaahVfFd
+                    joke: My dog used to chase people on a bike a lot. It got so bad I had to take his bike away.
+                    status: 200
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: |
+            No joke exists with this ID. The status and body come from the official
+            API (the proxy forwards them unchanged and does not cache them).
+            The official documentation does not describe the error body, so only
+            `status` is guaranteed here.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamFailure'
+        '504':
+          $ref: '#/components/responses/UpstreamTimeout'
+
+  /search:
+    get:
+      operationId: searchJokes
+      tags: [Jokes]
+      summary: Search jokes
+      description: |
+        Searches the joke collection. All three query parameters are optional.
+        Without `term`, every joke is listed.
+
+        ## Pagination
+
+        Results are returned in **pages**. `limit` says how many jokes go on one
+        page and `page` says which page you want. The response tells you where you
+        are: `current_page`, `total_pages` and `total_jokes`. To read everything,
+        keep increasing `page` until you reach `total_pages`.
+
+        The local proxy remembers each distinct combination of `term`, `page` and
+        `limit` for **5 minutes**.
+      parameters:
+        - $ref: '#/components/parameters/Term'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: One page of matching jokes.
+          headers:
+            X-Cache:
+              $ref: '#/components/headers/XCache'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+              examples:
+                hipster:
+                  summary: Search for "hipster" (example from the official documentation)
+                  value:
+                    current_page: 1
+                    limit: 20
+                    next_page: 1
+                    previous_page: 1
+                    results:
+                      - id: GlGBIY0wAAd
+                        joke: How much does a hipster weigh? An instagram.
+                      - id: xc21Lmbxcib
+                        joke: How did the hipster burn the roof of his mouth? He ate the pizza before it was cool.
+                    search_term: hipster
+                    status: 200
+                    total_jokes: 2
+                    total_pages: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamFailure'
+        '504':
+          $ref: '#/components/responses/UpstreamTimeout'
+
+components:
+  parameters:
+    JokeId:
+      name: joke_id
+      in: path
+      required: true
+      description: The unique ID of a joke (the `id` field in other responses).
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9]{1,40}$'
+      example: R7UfaahVfFd
+    Term:
+      name: term
+      in: query
+      required: false
+      description: Word or phrase to search for. Leave empty to list all jokes.
+      schema:
+        type: string
+        maxLength: 100
+        default: ''
+      example: hipster
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Which page of results to fetch. Pages start at 1.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Number of jokes per page. Maximum 30 according to the official documentation.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 30
+        default: 20
+      example: 5
+
+  headers:
+    XCache:
+      description: |
+        Added by the local proxy only (not by the official API).
+        `HIT` = answered from the proxy's memory, no request was sent to the official API.
+        `MISS` = the proxy asked the official API.
+      schema:
+        type: string
+        enum: [HIT, MISS]
+
+  responses:
+    BadRequest:
+      description: The local proxy rejected an invalid path or query value before contacting the official API.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            badLimit:
+              value:
+                status: 400
+                message: limit must be a whole number.
+    RateLimited:
+      description: |
+        The local proxy's safety limit (30 requests per minute to the official API)
+        was reached. Wait for the number of seconds in `Retry-After` and try again.
+      headers:
+        Retry-After:
+          description: Seconds to wait before trying again.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            tooMany:
+              value:
+                status: 429
+                message: Local proxy limit reached to protect the public API. Try again in 12 s.
+    UpstreamFailure:
+      description: The local proxy could not reach the official API (for example, no internet connection).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unreachable:
+              value:
+                status: 502
+                message: Could not reach the Dad Joke API.
+    UpstreamTimeout:
+      description: The official API did not answer within 8 seconds.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            timeout:
+              value:
+                status: 504
+                message: The Dad Joke API did not answer in time.
+
+  schemas:
+    Joke:
+      type: object
+      description: A single joke as it appears inside search results.
+      required: [id, joke]
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the joke.
+          examples: [R7UfaahVfFd]
+        joke:
+          type: string
+          description: The text of the joke.
+
+    JokeResponse:
+      type: object
+      description: Response for one joke (random joke or joke by ID).
+      required: [id, joke, status]
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the joke.
+          examples: [R7UfaahVfFd]
+        joke:
+          type: string
+          description: The text of the joke.
+        status:
+          type: integer
+          description: HTTP status code repeated inside the body by the API.
+          examples: [200]
+
+    SearchResponse:
+      type: object
+      description: One page of search results plus pagination details.
+      required:
+        - current_page
+        - limit
+        - next_page
+        - previous_page
+        - results
+        - search_term
+        - status
+        - total_jokes
+        - total_pages
+      properties:
+        current_page:
+          type: integer
+          description: The page number that was returned.
+        limit:
+          type: integer
+          description: Maximum number of jokes per page that was applied.
+        next_page:
+          type: integer
+          description: Number of the next page. In the official examples this repeats the last page number when there is no further page.
+        previous_page:
+          type: integer
+          description: Number of the previous page. In the official examples this is 1 on the first page.
+        results:
+          type: array
+          description: The jokes on this page (empty array if nothing matched).
+          items:
+            $ref: '#/components/schemas/Joke'
+        search_term:
+          type: string
+          description: The search term that was used (empty string when no term was given).
+        status:
+          type: integer
+          description: HTTP status code repeated inside the body by the API.
+        total_jokes:
+          type: integer
+          description: How many jokes matched in total, across all pages.
+        total_pages:
+          type: integer
+          description: How many pages exist for this search and limit.
+
+    Error:
+      type: object
+      description: |
+        Error body. Errors created by the local proxy (400, 429, 502, 504) always
+        contain both fields. Errors forwarded from the official API may differ.
+      required: [status]
+      properties:
+        status:
+          type: integer
+          description: HTTP status code.
+        message:
+          type: string
+          description: Human-readable explanation.

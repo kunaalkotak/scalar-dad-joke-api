@@ -1,0 +1,19 @@
+{
+  "name": "scalar-dad-joke-api",
+  "version": "1.0.0",
+  "description": "College group project: OpenAPI + Scalar documentation for the Dad Joke API, served with a small caching proxy.",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/*.test.js",
+    "validate": "node scripts/validate-spec.js"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
+    "ajv": "^8.20.0"
+  }
+}
