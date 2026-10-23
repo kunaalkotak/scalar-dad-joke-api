@@ -126,8 +126,13 @@ function createApp(options = {}) {
   const ttl = { ...DEFAULTS.ttlMs, ...(options.ttlMs || {}) };
   const upstreamTimeoutMs = options.upstreamTimeoutMs ?? DEFAULTS.upstreamTimeoutMs;
   const cache = options.cache || new TtlCache({ maxEntries: DEFAULTS.maxCacheEntries, now });
-  const limiter =
-    options.limiter || new RateLimiter({ ...DEFAULTS.upstreamLimit, now });
+  const upstreamLimit = {
+  ...DEFAULTS.upstreamLimit,
+  ...(options.upstreamLimit || {}),
+};
+
+const limiter =
+  options.limiter || new RateLimiter({ ...upstreamLimit, now });
 
   async function handleApi(req, res, subPath, searchParams) {
     if (req.method !== 'GET') {
@@ -256,7 +261,32 @@ function createApp(options = {}) {
 /** Convenience wrapper that returns a ready-to-listen http.Server. */
 function createServer(options = {}) {
   const app = createApp(options);
-  const server = http.createServer(app.handler);
+  function positiveIntegerOrDefault(value, fallback) {
+  if (value === undefined || value.trim() === '') {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`Expected a positive integer, received: ${value}`);
+  }
+
+  return parsed;
+}
+
+const upstreamLimit = {
+  max: positiveIntegerOrDefault(process.env.UPSTREAM_RATE_LIMIT_MAX, 30),
+  windowMs: positiveIntegerOrDefault(
+    process.env.UPSTREAM_RATE_LIMIT_WINDOW_MS,
+    60_000,
+  ),
+};
+
+const server = createServer({
+  userAgent: USER_AGENT,
+  upstreamLimit,
+});
   server.app = app;
   return server;
 }
