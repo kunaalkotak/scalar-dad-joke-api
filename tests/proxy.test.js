@@ -204,6 +204,27 @@ test('local rate limit returns 429 with Retry-After and stops contacting the pub
   const clock = { time: 1_000_000, now: () => clock.time };
   const limiter = new RateLimiter({ max: 2, windowMs: 60_000, now: clock.now });
   const p = await startProxy({ limiter });
+  test('custom upstream rate limit settings are respected', async () => {
+  const p = await startProxy({
+    upstreamLimit: { max: 1, windowMs: 60_000 },
+  });
+
+  try {
+    const first = await fetch(`${p.base}/api/j/aaa`);
+    assert.equal(first.status, 200);
+
+    const second = await fetch(`${p.base}/api/j/bbb`);
+    assert.equal(second.status, 429);
+
+    assert.equal(
+      p.calls.length,
+      1,
+      'only one upstream request should be allowed',
+    );
+  } finally {
+    await p.close();
+  }
+});
   try {
     await fetch(`${p.base}/api/j/aaa`);
     await fetch(`${p.base}/api/j/bbb`);
